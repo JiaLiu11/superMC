@@ -58,13 +58,13 @@ cutdSdy_upperBound =  10000000.0       # upper bound of the allowed total entrop
 
 
 # Monte Carlo Optns
-nev = 1000                 # Number of collision events simulated
+nev = 10                 # Number of collision events simulated
 randomSeed = -1           # If randomSeed < 0 then CPU time is used to seed
 backup_number = 10000     # Backs up the averaged profile every "n" events. 0 means 
                           # every step. Use a neg number to turn it off
 
 # Operation Mode Optns
-operation = 3             # (1) Generate n transverse density profiles for n events 
+operation = 9             # (1) Generate n transverse density profiles for n events 
                           # (input for event-by-event hydro)
                           # (2) Generate n transverse density profiles for n events 
                           # and their corresponding binary collision table and eccentricities
@@ -84,6 +84,10 @@ ecc_from_order = 1        # 9-> Calculate the eccentricity of the profile for ea
                           # beginning with this order
 ecc_to_order = 9          # 9-> Calculate the eccentricity of the profile for each order 
                           # ending with this order
+
+                          # orders for radius when calculate eccentricities
+ecc_from_order_radius = 1
+ecc_to_order_radius   = 9
 
 # Print to File Optns
 use_sd = 1                # Boolean toggle to print the raw CGC and Glauber output 

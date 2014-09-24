@@ -186,6 +186,9 @@ void MakeDensity::generate_profile_ebe_Jet(int nevent)
   int from_order = paraRdr->getVal("ecc_from_order");
   int to_order = paraRdr->getVal("ecc_to_order");
 
+  int from_m_order = paraRdr->getVal("ecc_from_order_radius");
+  int to_m_order = paraRdr->getVal("ecc_to_order_radius");
+
   int use_sd = paraRdr->getVal("use_sd");
   int use_ed = paraRdr->getVal("use_ed");
   int use_block = paraRdr->getVal("use_block");
@@ -1852,9 +1855,12 @@ void MakeDensity::generateEccTable(int nevent)
 // Npmin, Npmax: cut on N_part
 {
   int from_order=paraRdr->getVal("ecc_from_order"), to_order=paraRdr->getVal("ecc_to_order");
+  int from_m_order = paraRdr->getVal("ecc_from_order_radius");
+  int to_m_order = paraRdr->getVal("ecc_to_order_radius");
 
   // entropy profile:
   char file1[] = "data/sn_ecc_eccp_%d.dat";
+  char file3[] = "data/sn_ecc_eccp_radiusM_%d.dat";
   double *** dens1  = new double** [binRapidity];
   for(int iy=0;iy<binRapidity;iy++) {
     dens1[iy] =  new double* [Maxx]();
@@ -1866,6 +1872,7 @@ void MakeDensity::generateEccTable(int nevent)
 
   // energy profile:
   char file2[] = "data/en_ecc_eccp_%d.dat";
+  char file4[] = "data/en_ecc_eccp_radiusM_%d.dat";
   double *** dens2  = new double** [binRapidity];
   for(int iy=0;iy<binRapidity;iy++) {
     dens2[iy] =  new double* [Maxx]();
@@ -1923,12 +1930,16 @@ void MakeDensity::generateEccTable(int nevent)
       {
         setSd(dens1, iy);
         dumpEccentricities(file1, dens1, iy, from_order, to_order, Npart, Nbin, b);
+        dumpDiffOrderEccentricities(file3, dens1, iy, from_m_order, to_m_order, from_order, 
+          to_order, Npart, Nbin, b);
       }
       // energy second
       if (paraRdr->getVal("use_ed"))
       {
         setEd(dens2, iy);
         dumpEccentricities(file2, dens2, iy, from_order, to_order, Npart, Nbin, b);
+        dumpDiffOrderEccentricities(file4, dens2, iy, from_m_order, to_m_order, from_order, 
+          to_order, Npart, Nbin, b);
       }
     }
 
@@ -2095,6 +2106,128 @@ void MakeDensity::dumpEccentricities(char* base_filename, double*** density, con
     }
 
     delete[] mom_real, mom_imag, norm, momp_real, momp_imag, normp;
+}
+
+
+//********************************************************************
+void MakeDensity::dumpDiffOrderEccentricities(char* base_filename, double*** density, 
+  const int iy, int from_m_order, int to_m_order, int from_n_order, int to_n_order, 
+  double Npart_current, double Nbin_current, double b)
+// calculate and output eccentricities following the definition:
+// epsilon_{mn} = {r^m e^i*n*phi}/{e^i*n*phi}
+{
+    bool deformedFlag = false;
+    if(paraRdr->getVal("proj_deformed") == 1 or paraRdr->getVal("targ_deformed") == 1) 
+      deformedFlag = true;
+    std::ofstream of;
+    char buffer[200];
+    double x,y,r,theta;
+    int m_order;
+    double  xc, yc, total;
+    double **momp_real, **momp_imag;
+    momp_real = new double* [to_m_order+1];
+    momp_imag = new double* [to_m_order+1];
+    for(int i=0;i<=to_m_order;i++) 
+    {
+      momp_real[i] = new double [to_n_order+1];
+      momp_imag[i] = new double [to_n_order+1];
+    } 
+    double *normp = new double[to_m_order+1]; // 
+    // center of mass:
+    xc = 0.0; yc = 0.0; total = 0.0;
+    for(int i=0;i<Maxx;i++)
+    for(int j=0;j<Maxy;j++)
+    {
+        x = Xmin + i*dx; y = Ymin + j*dy;
+        xc += x*density[iy][i][j];
+        yc += y*density[iy][i][j];
+        total += density[iy][i][j];
+    }
+    xc /= total; yc /= total;
+
+    // for eccentricity:
+    for (m_order=from_m_order; m_order<=to_m_order; m_order++)
+    {
+      // calculate denominator
+      normp[m_order]=0.0;
+      for(int i=0;i<Maxx;i++)
+        for(int j=0;j<Maxy;j++)
+        {
+          x = Xmin + i*dx - xc; y = Ymin + j*dy - yc; // shift to center
+          r = sqrt(x*x + y*y); theta = atan2(y,x);
+          normp[m_order] += pow(r,m_order)*density[iy][i][j];
+        }
+
+      for(int n_order=from_n_order; n_order<=to_n_order;n_order++)
+      {
+        // initialize:
+        momp_real[m_order][n_order]=0.0; 
+        momp_imag[m_order][n_order]=0.0; 
+
+        // calculate numerator and denominators:
+        for(int i=0;i<Maxx;i++)
+        for(int j=0;j<Maxy;j++)
+        {
+            x = Xmin + i*dx - xc; y = Ymin + j*dy - yc; // shift to center
+            r = sqrt(x*x + y*y); theta = atan2(y,x);
+            momp_real[m_order][n_order] += pow(r,m_order)*cos(n_order*theta)*density[iy][i][j];
+            momp_imag[m_order][n_order] += pow(r,m_order)*sin(n_order*theta)*density[iy][i][j];
+        }
+
+        // take ratio; note that the minus sign is just a convention
+        momp_real[m_order][n_order] = -momp_real[m_order][n_order]/normp[m_order];
+        momp_imag[m_order][n_order] = -momp_imag[m_order][n_order]/normp[m_order];
+      }//<n_order>
+
+        // prepare output
+        sprintf(buffer, base_filename, m_order);
+        of.open(buffer, std::ios_base::app);
+
+        // output one line for one value of m_order
+        if(deformedFlag)
+        {
+          for(int n_order=from_n_order; n_order<=to_n_order;n_order++)
+              of<< setprecision(8) << setw(16) <<  momp_real[m_order][n_order]
+                << setprecision(8) << setw(16) <<  momp_imag[m_order][n_order];
+
+              of<< setprecision(5) << setw(10)  <<  Npart_current
+                << setprecision(5) << setw(10) <<  Nbin_current
+                << setprecision(8) << setw(16) <<  total*dx*dy // integrated profile measure
+                << setprecision(8) << setw(16) <<  b
+//                << setprecision(8) << setw(16) <<  overlap_area1
+//                << setprecision(8) << setw(16) <<  overlap_area2
+                << setprecision(8) << setw(16) <<  mc->lastCx1
+                << setprecision(8) << setw(16) <<  mc->lastPh1
+                << setprecision(8) << setw(16) <<  mc->lastCx2
+                << setprecision(8) << setw(16) <<  mc->lastPh2
+//                << setprecision(8) << setw(16) <<  xc
+//                << setprecision(8) << setw(16) <<  yc
+//                << setprecision(3) << setw(12) <<  rapMin+(rapMax-rapMin)/binRapidity*iy
+                << endl;
+        }
+        else
+        {
+          for(int n_order=from_n_order; n_order<=to_n_order;n_order++)
+            of  << setprecision(8) << setw(16) <<  momp_real[m_order][n_order]
+                << setprecision(8) << setw(16) <<  momp_imag[m_order][n_order];
+
+            of  << setprecision(5) << setw(10) <<  Npart_current
+                << setprecision(5) << setw(10) <<  Nbin_current
+                << setprecision(8) << setw(16) <<  total*dx*dy // integrated profile measure
+                << setprecision(8) << setw(16) <<  b
+                << endl;
+        }
+        of.close();  //complete output
+    }//<m_order>
+
+
+    // delete temp variables
+    for(int i=0;i<=to_m_order;i++)
+    {
+      delete [] momp_real[i];
+      delete [] momp_imag[i];
+    }
+    delete[] momp_real, momp_imag, normp;
 }
 
 

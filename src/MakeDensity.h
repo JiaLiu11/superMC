@@ -58,6 +58,9 @@ protected:
   void generate_profile_average(int nevent);
   void generateEccTable(int nevent);
   void dumpEccentricities(char* base_filename, double*** density, const int iy, int from_order, int to_order, double Npart_current, double Nbin_current, double b);
+  void dumpDiffOrderEccentricities(char* base_filename, double*** density, 
+        const int iy, int from_m_order, int to_m_order, int from_n_order, int to_n_order, 
+        double Npart_current, double Nbin_current, double b);
   void setSd(double*** data, int iy);
   void setEd(double*** data, int iy);
   void setSd(double**** data, int iy);
